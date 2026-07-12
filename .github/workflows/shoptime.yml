@@ -1,0 +1,30 @@
+name: Post shop time to Slack
+
+on:
+  schedule:
+    # 12:30 and 13:30 UTC on Tuesdays and Thursdays. GitHub only understands UTC,
+    # so we fire twice: one of these is always 8:30am Eastern (12:30 in summer,
+    # 13:30 in winter) and post_shoptime.py ignores whichever one isn't.
+    - cron: "30 12,13 * * 2,4"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the message without actually posting to Slack"
+        type: boolean
+        default: true
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Post the next shop session
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python post_shoptime.py
