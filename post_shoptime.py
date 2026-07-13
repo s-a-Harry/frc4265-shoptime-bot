@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""Announce the next FRC 4265 shop session in #shoptime.
+"""Announce the coming week's FRC 4265 shop sessions in #shoptime.
 
-Runs from GitHub Actions on Tuesdays and Thursdays and posts the session one
-week out, e.g. "Tuesday, July 21, 6-9PM".
+Runs from GitHub Actions on Friday mornings and posts the upcoming Tuesday and
+Thursday as two separate messages, e.g.
+
+    Tuesday, July 21, 6-9PM
+    Thursday, July 23, 6-9PM
+
+They are posted separately on purpose: the team reacts to each one with a
+thumbs up or down to signal attendance, so each session needs its own message
+to collect its own reactions.
 """
 
 import json
@@ -17,7 +24,10 @@ TEAM_TZ = ZoneInfo("America/New_York")
 CHANNEL_ID = "C04HZNFFFJQ"  # #shoptime
 SLACK_API = "https://slack.com/api"
 
-TUESDAY, THURSDAY = 1, 3
+MONDAY, TUESDAY, THURSDAY, FRIDAY = 0, 1, 3, 4
+
+# Enough history to see both of last week's announcements plus normal chatter.
+HISTORY_LIMIT = 20
 
 
 def slack_get(method, token, params):
@@ -40,6 +50,12 @@ def slack_post(method, token, payload):
         return json.load(resp)
 
 
+def next_weekday(start, weekday):
+    """The next given weekday strictly after `start`."""
+    days = (weekday - start.weekday()) % 7 or 7
+    return start + timedelta(days=days)
+
+
 def main():
     token = os.environ.get("SLACK_BOT_TOKEN")
     if not token:
@@ -55,36 +71,36 @@ def main():
         if now.hour != 8:
             print(f"Local time is {now:%H:%M} Eastern, not the 8am run. Exiting.")
             return
-        if now.weekday() not in (TUESDAY, THURSDAY):
-            print(f"Today is {now:%A}, not a shop day. Exiting.")
+        if now.weekday() != FRIDAY:
+            print(f"Today is {now:%A}, not announcement day. Exiting.")
             return
 
-    session = now + timedelta(days=7)
-    message = f"{session:%A}, {session:%B} {session.day}, 6-9PM"
-    print(f"Message to post: {message}")
+    sessions = [next_weekday(now, TUESDAY), next_weekday(now, THURSDAY)]
+    messages = [f"{d:%A}, {d:%B} {d.day}, 6-9PM" for d in sessions]
 
     history = slack_get(
-        "conversations.history", token, {"channel": CHANNEL_ID, "limit": 10}
+        "conversations.history", token, {"channel": CHANNEL_ID, "limit": HISTORY_LIMIT}
     )
     if not history.get("ok"):
         sys.exit(f"Could not read #shoptime: {history.get('error')}")
 
-    for msg in history.get("messages", []):
-        if msg.get("text", "").strip() == message:
-            print("This session was already announced. Nothing to do.")
-            return
+    already_posted = {m.get("text", "").strip() for m in history.get("messages", [])}
 
-    if dry_run:
-        print("Dry run: not posting to Slack.")
-        return
+    for message in messages:
+        if message in already_posted:
+            print(f"Already announced, skipping: {message}")
+            continue
 
-    result = slack_post(
-        "chat.postMessage", token, {"channel": CHANNEL_ID, "text": message}
-    )
-    if not result.get("ok"):
-        sys.exit(f"Failed to post: {result.get('error')}")
+        if dry_run:
+            print(f"Would post: {message}")
+            continue
 
-    print("Posted to #shoptime.")
+        result = slack_post(
+            "chat.postMessage", token, {"channel": CHANNEL_ID, "text": message}
+        )
+        if not result.get("ok"):
+            sys.exit(f"Failed to post '{message}': {result.get('error')}")
+        print(f"Posted: {message}")
 
 
 if __name__ == "__main__":

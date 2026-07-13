@@ -1,16 +1,23 @@
 # frc4265-shoptime-bot
 
-Posts the upcoming shop session to the FRC 4265 `#shoptime` Slack channel.
+Announces the coming week's shop sessions in the FRC 4265 `#shoptime` Slack
+channel.
 
-Every Tuesday and Thursday at 8:30am Eastern, it announces the session one week
-out, in the team's usual format:
+Every **Friday at 8:30am Eastern**, it posts the upcoming Tuesday and Thursday
+as two separate messages:
 
 ```
 Tuesday, July 21, 6-9PM
+Thursday, July 23, 6-9PM
 ```
 
-Before posting it reads the last 10 messages in the channel, so if it somehow
-runs twice it won't post a duplicate.
+They're posted separately on purpose. The team reacts to each one with 👍 / 👎
+to signal whether they're coming, so each session needs its own message to
+collect its own reactions. Posting on Friday gives everyone the weekend to
+respond.
+
+Before posting, the bot reads the recent channel history and skips any session
+it already announced, so an accidental double run won't produce duplicates.
 
 ## Setup
 
@@ -23,35 +30,38 @@ You only need to do this once.
 3. In the sidebar, open **OAuth & Permissions**.
 4. Scroll to **Bot Token Scopes** and add these two:
    - `chat:write` — lets it post
-   - `channels:history` — lets it read the last 10 messages to check for duplicates
+   - `channels:history` — lets it read recent messages to check for duplicates
 5. Scroll back up and click **Install to Workspace**, then **Allow**.
 6. Copy the **Bot User OAuth Token**. It starts with `xoxb-`.
 
+If you add the scopes *after* installing, click **Reinstall to Workspace** or
+the bot user won't actually appear in Slack.
+
 ### 2. Invite the bot to the channel
 
-In Slack, go to `#shoptime` and send:
-
-```
-/invite @Shop Time Bot
-```
+In Slack, open `#shoptime`, click the channel name at the top, go to the
+**Integrations** tab, and choose **Add an App** > `Shop Time Bot`.
 
 The bot cannot post to a channel it hasn't been invited to.
 
 ### 3. Give the token to GitHub
 
-1. Go to this repo on GitHub > **Settings** > **Secrets and variables** > **Actions**.
+1. Go to the repo on GitHub > **Settings** > **Secrets and variables** > **Actions**.
 2. Click **New repository secret**.
-3. Name it exactly `SLACK_BOT_TOKEN` and paste the `xoxb-...` token as the value.
+3. Name it exactly `SLACK_BOT_TOKEN` and paste the `xoxb-...` token as the secret.
 
 ## Testing it
 
-Go to the **Actions** tab > **Post shop time to Slack** > **Run workflow**.
+Go to the **Actions** tab (the one in the top row of the repo, not the one in
+Settings) > **Post shop time to Slack** > **Run workflow**.
 
-Leave **dry run** checked and it will show you the exact message it *would*
-post, without posting. Uncheck it to post for real.
+Leave **dry run** checked and it will print the exact messages it *would* post,
+without posting them. Uncheck it to post for real.
 
 ## Changing the schedule
 
-Edit the `cron` line in `.github/workflows/shoptime.yml`. The `2,4` at the end
-means Tuesday and Thursday. Note that GitHub's scheduler can run a few minutes
-late when it's busy; that's normal and doesn't affect the message.
+Edit the `cron` line in `.github/workflows/shoptime.yml`. The `5` at the end
+means Friday (Sunday is 0). It's listed twice — `12,13` — so that one run always
+lands on 8:30am Eastern whether or not daylight saving is in effect; the script
+ignores the other. GitHub's scheduler can run a few minutes late when it's busy,
+which is normal.
