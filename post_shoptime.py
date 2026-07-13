@@ -24,7 +24,7 @@ TEAM_TZ = ZoneInfo("America/New_York")
 CHANNEL_ID = "C04HZNFFFJQ"  # #shoptime
 SLACK_API = "https://slack.com/api"
 
-MONDAY, TUESDAY, THURSDAY, FRIDAY = 0, 1, 3, 4
+TUESDAY, THURSDAY, FRIDAY = 1, 3, 4
 
 # Enough history to see both of last week's announcements plus normal chatter.
 HISTORY_LIMIT = 20
@@ -62,12 +62,14 @@ def main():
         sys.exit("SLACK_BOT_TOKEN is not set. Add it under Settings > Secrets.")
 
     dry_run = os.environ.get("DRY_RUN", "").lower() == "true"
+    scheduled = os.environ.get("IS_SCHEDULED", "").lower() == "true"
     now = datetime.now(TEAM_TZ)
 
     # The workflow fires at 12:30 and 13:30 UTC so that one of the two is always
-    # 8:30am in New York, whether or not daylight saving is in effect. Whichever
-    # run is the wrong one lands outside the 8am hour and stops here.
-    if not dry_run:
+    # 8:30am in New York, whether or not daylight saving is in effect. Drop the
+    # one that isn't. Only cron runs are filtered this way: if a human pressed
+    # the button, they meant it, whatever day and hour it happens to be.
+    if scheduled:
         if now.hour != 8:
             print(f"Local time is {now:%H:%M} Eastern, not the 8am run. Exiting.")
             return

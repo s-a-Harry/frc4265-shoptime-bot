@@ -23,4 +23,5 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: python3 post_shoptime.py
