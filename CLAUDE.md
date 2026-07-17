@@ -29,7 +29,14 @@ message text literally, so any drift in the format silently breaks it.
 **The cron is listed twice on purpose** (`30 12,13 * * 5`). GitHub cron is
 UTC-only, so a single entry would drift by an hour when daylight saving ends.
 Firing at both 12:30 and 13:30 UTC means one of them is always 8:30am Eastern;
-the script checks the local hour and exits from the wrong one.
+`skip_reason` drops the *early* one (before 8am) and keeps the other.
+
+**The time guard tolerates lateness on purpose.** `skip_reason` posts on any
+Friday run from 8am Eastern onward, not 8:30 exactly. GitHub Actions routinely
+dispatches scheduled jobs late — the bot silently missed its first Friday when
+GitHub ran the job at 10:11 instead of 8:30 and an old exact-8am check rejected
+it. Do **not** re-tighten this to an exact hour; the duplicate check is what
+prevents double-posting, not the clock.
 
 **That time guard only applies to scheduled runs** (`IS_SCHEDULED`). Manual runs
 via *Run workflow* deliberately bypass it — if a human pressed the button, they
@@ -42,9 +49,12 @@ memory. GitHub Actions is the working path.
 
 ## Testing
 
-There's no test suite. Verify changes with **Actions → Post shop time to Slack →
-Run workflow** with *dry run* checked: it prints the exact messages it would
-post without touching Slack. Dry run also bypasses the day/hour guard, so it
+`test_shoptime.py` covers the post/skip decision (`python3 test_shoptime.py`,
+no dependencies) — including the delayed-run case that once broke the bot.
+
+For an end-to-end check, use **Actions → Post shop time to Slack → Run
+workflow** with *dry run* checked: it prints the exact messages it would post
+without touching Slack. Manual runs bypass the day/hour guard entirely, so it
 works any day of the week.
 
 ## Secrets

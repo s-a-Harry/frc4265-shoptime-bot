@@ -56,6 +56,33 @@ def next_weekday(start, weekday):
     return start + timedelta(days=days)
 
 
+def skip_reason(now, scheduled):
+    """Why a run at local time `now` should NOT post — or None to go ahead.
+
+    Manual runs (`scheduled` is False) always post: if a human pressed the
+    button, they meant it, whatever day and hour it is.
+
+    Scheduled runs post only on Fridays, and only once we've reached 8am
+    Eastern. We accept *any* time from 8am onward, not 8:30 exactly, because
+    GitHub Actions runs scheduled jobs late — usually by a few minutes, but
+    occasionally by over an hour. (This bot silently missed a week when GitHub
+    fired the Friday job at 10:11 instead of 8:30 and the old exact-8am check
+    threw it away.) Posting a little late is fine; posting nothing is not.
+
+    We still refuse to post *before* 8am, which is what drops the wrong half of
+    the two daylight-saving cron runs (see the workflow). The duplicate check
+    back in main() is what keeps a late — or repeated — run from announcing the
+    same session twice.
+    """
+    if not scheduled:
+        return None
+    if now.weekday() != FRIDAY:
+        return f"Today is {now:%A}, not announcement day."
+    if now.hour < 8:
+        return f"It's {now:%H:%M} Eastern, before the 8am announcement window."
+    return None
+
+
 def main():
     token = os.environ.get("SLACK_BOT_TOKEN")
     if not token:
@@ -65,17 +92,10 @@ def main():
     scheduled = os.environ.get("IS_SCHEDULED", "").lower() == "true"
     now = datetime.now(TEAM_TZ)
 
-    # The workflow fires at 12:30 and 13:30 UTC so that one of the two is always
-    # 8:30am in New York, whether or not daylight saving is in effect. Drop the
-    # one that isn't. Only cron runs are filtered this way: if a human pressed
-    # the button, they meant it, whatever day and hour it happens to be.
-    if scheduled:
-        if now.hour != 8:
-            print(f"Local time is {now:%H:%M} Eastern, not the 8am run. Exiting.")
-            return
-        if now.weekday() != FRIDAY:
-            print(f"Today is {now:%A}, not announcement day. Exiting.")
-            return
+    reason = skip_reason(now, scheduled)
+    if reason:
+        print(reason + " Exiting.")
+        return
 
     sessions = [next_weekday(now, TUESDAY), next_weekday(now, THURSDAY)]
     messages = [f"{d:%A}, {d:%B} {d.day}, 6-9PM" for d in sessions]
